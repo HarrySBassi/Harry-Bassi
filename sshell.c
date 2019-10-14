@@ -422,26 +422,29 @@ int main(int argc, char *argv[])
   {
     command_list_struct* _cmd_list = get_user_cmd();
     command* _cmd = _cmd_list->cmd_list[0];
+    pid_t pid;
+
+    int status;
 
     if (strcmp(_cmd->cmd_and_args[0], "exit") == 0)
     {
       fprintf(stderr, "Bye...\n");
       exit(0);
     }
-    else if (strcmp(_cmd->cmd_and_args[0], "pwd") == 0)
+    if (strcmp(_cmd->cmd_and_args[0], "pwd") == 0)
     {
-      char buf[500];
-      getcwd(buf, 500);
-      printf("%s\n", buf);
+      char buf[1000];
+      getcwd(buf, 1000);
+      //printf("%s\n", buf);
     }
-    else if (strcmp(_cmd->cmd_and_args[0], "cd") == 0)
+    if (strcmp(_cmd->cmd_and_args[0], "cd") == 0)
     {
-      chdir(_cmd->cmd_and_args[1]);
-    }
-    else if {
-      pid_t pid;
-
-      int status;
+      int i = chdir(_cmd->cmd_and_args[1]);  
+	fprintf(stderr,
+                "+ completed '%s': [%d]\n",
+                get_formatted_input_str(_cmd_list->input_string),
+                WEXITSTATUS(i));
+    } else{
 
       pid = fork();
       if (pid == 0) {
@@ -475,7 +478,7 @@ int main(int argc, char *argv[])
         perror("fork");
         exit(1);
       }
-    }
+	}
   }
   return EXIT_SUCCESS;
 }
