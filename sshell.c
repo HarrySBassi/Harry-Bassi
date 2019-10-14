@@ -428,59 +428,53 @@ int main(int argc, char *argv[])
       fprintf(stderr, "Bye...\n");
       exit(0);
     }
-    if (strcmp(_cmd->cmd_and_args[0], "pwd") == 0)
+    else if (strcmp(_cmd->cmd_and_args[0], "pwd") == 0)
     {
-      char buf;
-      getcwd(buf, _cmd->numArgs);
+      char buf[500];
+      getcwd(buf, 500);
       printf("%s\n", buf);
     }
-    if (strcmp(_cmd->cmd_and_args[0], "cd") == 0)
+    else if (strcmp(_cmd->cmd_and_args[0], "cd") == 0)
     {
-      chdir(_cmd->cmd_and_args[0]);
+      chdir(_cmd->cmd_and_args[1]);
     }
+    else if {
+      pid_t pid;
 
-    pid_t pid;
+      int status;
 
-    int status;
+      pid = fork();
+      if (pid == 0) {
 
-    pid = fork();
-    if (pid == 0)
-    {
+        // Output redirection
+        if (_cmd->outputRedirect) {
+          redirect_output(_cmd);
+        }
+        // Input redirection
+        if (_cmd->inputRedirect) {
+          redirect_input(_cmd);
+        }
 
-      // Output redirection
-      if (_cmd->outputRedirect)
-      {
-        redirect_output(_cmd);
-      }
-      // Input redirection
-      if (_cmd->inputRedirect)
-      {
-        redirect_input(_cmd);
-      }
+        if (_cmd_list->cmd_list[0]->isPipe) {
+          piping_it(0, 1, _cmd_list, 0);
+          //pipe2(_cmd_list);
+        } else {
+          execvp(_cmd->cmd_and_args[0], _cmd->cmd_and_args);
+          perror("execvp");
+          exit(1);
+        }
 
-      if (_cmd_list->cmd_list[0]->isPipe)
-      {
-        piping_it(0, 1, _cmd_list, 0);
-        //pipe2(_cmd_list);
-      }
-      else
-      {
-        execvp(_cmd->cmd_and_args[0], _cmd->cmd_and_args);
-        perror("execvp");
+      } else if (pid > 0) {
+        waitpid(-1, &status, 0);
+
+        fprintf(stderr,
+                "+ completed '%s': [%d]\n",
+                get_formatted_input_str(_cmd_list->input_string),
+                WEXITSTATUS(status));
+      } else {
+        perror("fork");
         exit(1);
       }
-
-    }
-    else if (pid > 0)
-    {
-      waitpid(-1, &status, 0);
-
-      fprintf(stderr, "+ completed '%s': [%d]\n", get_formatted_input_str(_cmd_list->input_string), WEXITSTATUS(status));
-    }
-    else
-    {
-      perror("fork");
-      exit(1);
     }
   }
   return EXIT_SUCCESS;
