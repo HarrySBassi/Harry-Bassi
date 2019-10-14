@@ -439,46 +439,58 @@ int main(int argc, char *argv[])
     }
     if (strcmp(_cmd->cmd_and_args[0], "cd") == 0)
     {
-      int i = chdir(_cmd->cmd_and_args[1]);  
-	fprintf(stderr,
-                "+ completed '%s': [%d]\n",
-                get_formatted_input_str(_cmd_list->input_string),
-                WEXITSTATUS(i));
-    } else{
+      int i = chdir(_cmd->cmd_and_args[1]);
+      fprintf(stderr,
+              "+ completed '%s' [%d]\n",
+              get_formatted_input_str(_cmd_list->input_string),
+              WEXITSTATUS(i));
+    }
+    else
+    {
 
       pid = fork();
-      if (pid == 0) {
+      if (pid == 0)
+      {
 
         // Output redirection
-        if (_cmd->outputRedirect) {
+        if (_cmd->outputRedirect)
+        {
           redirect_output(_cmd);
         }
         // Input redirection
-        if (_cmd->inputRedirect) {
+        if (_cmd->inputRedirect)
+        {
           redirect_input(_cmd);
         }
 
-        if (_cmd_list->cmd_list[0]->isPipe) {
+        if (_cmd_list->cmd_list[0]->isPipe)
+        {
           piping_it(0, 1, _cmd_list, 0);
           //pipe2(_cmd_list);
-        } else {
+        }
+        else
+        {
           execvp(_cmd->cmd_and_args[0], _cmd->cmd_and_args);
           perror("execvp");
           exit(1);
         }
 
-      } else if (pid > 0) {
+      }
+      else if (pid > 0)
+      {
         waitpid(-1, &status, 0);
 
         fprintf(stderr,
                 "+ completed '%s': [%d]\n",
                 get_formatted_input_str(_cmd_list->input_string),
                 WEXITSTATUS(status));
-      } else {
+      }
+      else
+      {
         perror("fork");
         exit(1);
       }
-	}
+    }
   }
   return EXIT_SUCCESS;
 }
