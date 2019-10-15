@@ -428,15 +428,29 @@ void piping_it(int c1, int c2, command_list_struct* _cmd_list, int last_cmd_outp
   }
 }
 
+// checks if there are no input file for <
+bool no_input_file(command_list_struct* _cmd_list) {
+  bool no_input = false;
+  if(strcmp(_cmd_list->cmd_list[0]->cmd_and_args[0],"<") == 0){
+    char err_msg[] = "Error: no input file\n";
+    fprintf(stderr, "%s", err_msg);
+    no_input = true;
+  }
+  return no_input;
+}
+
+
+
 /*For missing command error
  * if & of |  is first token
  * if pipe is last token
  * */
+// checks if these commands are missing something.
 bool check_for_missing_cmd(command_list_struct* _cmd_list) {
   bool was_missing = false;
   if(strcmp(_cmd_list->cmd_list[0]->cmd_and_args[0],"&") == 0 ||
       strcmp(_cmd_list->cmd_list[0]->cmd_and_args[0],"|") == 0 ||
-      strcmp(_cmd_list->cmd_list[_cmd_list->num_cmd - 1]->isPipe,"|") == 0) {
+      _cmd_list->cmd_list[_cmd_list->num_cmd - 1]->isPipe){
     char err_msg[] = "Error: missing command\n";
     fprintf(stderr, "%s", err_msg);
     was_missing = true;
@@ -467,6 +481,9 @@ int main(int argc, char *argv[])
       continue;
     }
     if(check_for_missing_cmd(_cmd_list)) {
+      continue;
+    }
+    if(no_input_file(_cmd_list)) {
       continue;
     }
     command* _cmd = _cmd_list->cmd_list[0];
