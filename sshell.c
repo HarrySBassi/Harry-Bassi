@@ -314,6 +314,7 @@ void redirect_output(command* _cmd)
 // By dup2- int the given file name to stdin.
 void redirect_input(command* _cmd)
 {
+
   int f_in = open(_cmd->inputRedirectFileName, O_CREAT | O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
   dup2(f_in, STDIN_FILENO);
   close(f_in);
@@ -369,61 +370,42 @@ void pipe2(command_list_struct* _cmd_list)
   }
 }
 //THE PIPE FUNCTION
-void piping_it(int c1, int c2, command_list_struct* _cmd_list, int last_cmd_output)
-{
-  int pi[2];
-  pipe(pi);
-  command* _cmd1 = _cmd_list->cmd_list[c1];
-  command* _cmd2 = _cmd_list->cmd_list[c2];
-  int status;
-  pid_t pid = fork();
-  if(pid == 0)
-  {
-    /* Chile*/
-    if(c1 != 0)
-    {
-     // printf("THis is chile last_cmd_output: %d\n", last_cmd_output);
-      dup2(last_cmd_output, STDIN_FILENO);
-	printf("This is last_cmd_: %d\n", last_cmd_output);
-      close(last_cmd_output);
+void piping_it(int c1, command_list_struct* _cmd_list, int in_fd) {
+  command *_cmd1 = _cmd_list->cmd_list[c1];  //Last Command
+  if (_cmd_list->cmd_list[c1 + 1] == NULL) {
+    if (in_fd != STDIN_FILENO) {
+      if (dup2(in_fd, STDIN_FILENO) != -1) {
+        close(in_fd);
+      }
     }
-	printf("This is chile p[0]: %d\n", pi[0]);
-	printf("This is chile p[1]: %d\n", pi[1]);
-    close(pi[0]); /* Don't need read access to pipe */
-    dup2(pi[1], STDOUT_FILENO); /* Replace stdout with the pipe */
-    close(pi[1]); /* Close now unused file descriptor */
-    execvp(_cmd1->cmd_and_args[0], _cmd1->cmd_and_args);
-  }
-  else if (pid > 0)
-  {
-    /*Parent*/
-
-    waitpid(0, &status, 0);
-    close(pi[1]);
-    printf("This is parent p[0]: %d\n", pi[0]);
-	printf("This is parent p[1]: %d\n", pi[1]);
-    //close(pi[1]);
-
-    if(_cmd2->isPipe)
-    {
-      //printf("This is chile p[0]: %d\n", _cmd2->isPipe);
-      piping_it(c2, c2+1, _cmd_list, pi[0]);
-      printf("We are fone with cmd# %d\n", c2);
-    }
-    else
-    {
-      printf("We are in the else!!! %s\n", *_cmd2->cmd_and_args);
-      close(pi[1]); /* Don't need write to the pipe */
-      if(c1 ==0){
-	dup2(pi[0], STDIN_FILENO);
-	} else {
-	printf("This is last_cmd_parent: %d\n", last_cmd_output);
-
-      dup2(last_cmd_output, STDIN_FILENO); /*Replace STDIN with the read port of the pipe*/
-	}
-	printf("WEEE %d\n", pi[0]);
-      execvp(_cmd2->cmd_and_args[0], _cmd2->cmd_and_args);
-      //return;
+  } else {
+    int pi[2];
+    pipe(pi);
+    pid_t pid = fork();
+    if (pid == 0) {
+      /* Chile*/
+      close(pi[0]);
+      //READING FROM STDIN
+      if (_cmd_list->cmd_list[c1 + 1] == NULL) {
+        if (in_fd != STDIN_FILENO) {
+          if (dup2(in_fd, STDIN_FILENO) != -1) {
+            close(in_fd);
+          }
+        }
+      }
+      // WRITING TO pi[1]
+      if (_cmd_list->cmd_list[c1 + 1] == NULL) {
+        if (pi[1] != STDOUT_FILENO) {
+          if (dup2(pi[1], STDOUT_FILENO) != -1) {
+            close(pi[1]);
+          }
+        }
+      }
+      execvp(_cmd1->cmd_and_args[0], _cmd1->cmd_and_args);
+    } else if (pid > 0) {
+      close(pi[1]);
+      close(in_fd);
+      piping_it(c1 + 1, _cmd_list, pi[0]);
     }
   }
 }
@@ -452,14 +434,10 @@ int main(int argc, char *argv[])
     if (strcmp(_cmd->cmd_and_args[0], "cd") == 0)
     {
       int i = chdir(_cmd->cmd_and_args[1]);
-	if( i!=0){
-	fprintf(stderr ,"%s","Error: no such directory\n");
-	}
       fprintf(stderr,
               "+ completed '%s' [%d]\n",
               get_formatted_input_str(_cmd_list->input_string),
               WEXITSTATUS(i));
-	
     }
     else
     {
@@ -481,13 +459,13 @@ int main(int argc, char *argv[])
 
         if (_cmd_list->cmd_list[0]->isPipe)
         {
-          piping_it(0, 1, _cmd_list, 0);
+          piping_it(0, _cmd_list, STDIN_FILENO);
           //pipe2(_cmd_list);
         }
         else
         {
           execvp(_cmd->cmd_and_args[0], _cmd->cmd_and_args);
-          fprintf(stderr,"%s", "Error: command not found\n");
+          perror("execvp");
           exit(1);
         }
 
