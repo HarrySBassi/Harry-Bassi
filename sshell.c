@@ -380,39 +380,42 @@ void piping_it(int c1, int c2, command_list_struct* _cmd_list, int last_cmd_outp
 
   if(pid == 0)
   {
-    /* Chile*/
+    /* Child*/
     if(c1 != 0)
     {
       printf("THis is chile last_cmd_output: %d\n", last_cmd_output);
       dup2(last_cmd_output, STDIN_FILENO);
       close(last_cmd_output);
     }
-    close(pi[0]); /* Don't need read access to pipe */
-    dup2(pi[1], STDOUT_FILENO); /* Replace stdout with the pipe */
-    close(pi[1]); /* Close now unused file descriptor */
+    if(c2 != NULL) {
+      dup2(pi[1], STDOUT_FILENO); /* Replace stdout with the pipe */
+      close(pi[1]); /* Close now unused file descriptor */
+      close(pi[0]); /* Don't need read access to pipe */
+    }
     execvp(_cmd1->cmd_and_args[0], _cmd1->cmd_and_args);
-  }
-  else if (pid > 0)
-  {
-    /*Parent*/
-
-    waitpid(0, &status, 0);
-    close(pi[1]);
-
     if(_cmd2->isPipe)
     {
       printf("This is chile p[0]: %d\n", pi[0]);
       piping_it(c2, c2+1, _cmd_list, pi[0]);
       printf("We are fone with cmd# %d\n", c2);
     }
-    else
-    {
+  }
+  else if (pid > 0)
+  {
+    /*Parent*/
+
+    waitpid(0, &status, 0);
+     close(pi[1]);
+     close(pi[0]);
+
+   // else
+    //{
       //printf("We are in the else!!!\n");
-      close(pi[1]); /* Don't need write to the pipe */
-      dup2(pi[0], STDIN_FILENO); /*Replace STDIN with the read port of the pipe*/
-      execvp(_cmd2->cmd_and_args[0], _cmd2->cmd_and_args);
+      //close(pi[1]); /* Don't need write to the pipe */
+      //dup2(pi[0], STDIN_FILENO); /*Replace STDIN with the read port of the pipe*/
+      //execvp(_cmd2->cmd_and_args[0], _cmd2->cmd_and_args);
       //return;
-    }
+    //}
   }
 }
 
