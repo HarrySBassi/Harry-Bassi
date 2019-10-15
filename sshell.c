@@ -41,6 +41,7 @@ typedef struct command_list_struct
   command** cmd_list;
   int num_cmd;
   char* input_string;
+  int num_args_in_input_str; // The total number of args in the input string. Used for error handling.
 } command_list_struct;
 
 
@@ -169,7 +170,7 @@ void print_cmd_list(command_list_struct* _cmd_list)
 
 char* get_formatted_input_str(char* input_str)
 {
-  char* in_str = (char*) malloc(sizeof(char) * strlen(input_str));
+  char* in_str = (char*)malloc(sizeof(char) * strlen(input_str));
   int i = 0;
 
   while(input_str[i] != '\n' && input_str[i] != '\0')
@@ -185,7 +186,7 @@ char* get_formatted_input_str(char* input_str)
 // Returns an initialized instance of a command struct.
 command* get_initialized_cmd()
 {
-  command* cmd = (command*) malloc (sizeof(command));
+  command* cmd = (command*)malloc(sizeof(command));
   cmd->cmd_and_args  = NULL;
   cmd->numArgs = -1; // Because it will be incremented when cmd is added
   cmd->inputRedirectFileName = NULL;
@@ -208,6 +209,7 @@ command_list_struct* get_initialized_cmd_list()
   _command_list->cmd_list = NULL;
   _command_list->num_cmd = 0;
   _command_list->input_string = NULL;
+  _command_list->num_args_in_input_str = 0;
   return _command_list;
 }
 
@@ -251,7 +253,7 @@ command_list_struct* get_user_cmd()
 
       num_tokens_per_cmd++;
       char* token = set_token(input, &i);
-
+      _cmd_list->num_args_in_input_str++; // Increment the number of total commands. Must be less that 16.
       // printf("token: %s\n", token);
 
       pass_token_to_cmd(_cmd_list->cmd_list[_cmd_list->num_cmd - 1], token, num_tokens_per_cmd);
@@ -319,8 +321,6 @@ void redirect_input(command* _cmd)
   close(f_in);
 }
 
-
-
 void pipe2(command_list_struct* _cmd_list)
 {
   int* old_fd = (int*)malloc(sizeof(int)*2);
@@ -382,13 +382,13 @@ void piping_it(int c1, int c2, command_list_struct* _cmd_list, int last_cmd_outp
     /* Chile*/
     if(c1 != 0)
     {
-     // printf("THis is chile last_cmd_output: %d\n", last_cmd_output);
+      // printf("THis is chile last_cmd_output: %d\n", last_cmd_output);
       dup2(last_cmd_output, STDIN_FILENO);
-	printf("This is last_cmd_: %d\n", last_cmd_output);
+      fprintf(stderr,"This is last_cmd_: %d\n", last_cmd_output);
       close(last_cmd_output);
     }
-	printf("This is chile p[0]: %d\n", pi[0]);
-	printf("This is chile p[1]: %d\n", pi[1]);
+    fprintf(stderr,"This is chile p[0]: %d\n", pi[0]);
+    fprintf(stderr,"This is chile p[1]: %d\n", pi[1]);
     close(pi[0]); /* Don't need read access to pipe */
     dup2(pi[1], STDOUT_FILENO); /* Replace stdout with the pipe */
     close(pi[1]); /* Close now unused file descriptor */
@@ -400,8 +400,8 @@ void piping_it(int c1, int c2, command_list_struct* _cmd_list, int last_cmd_outp
 
     waitpid(0, &status, 0);
     close(pi[1]);
-    printf("This is parent p[0]: %d\n", pi[0]);
-	printf("This is parent p[1]: %d\n", pi[1]);
+    fprintf(stderr,"This is parent p[0]: %d\n", pi[0]);
+    fprintf(stderr,"This is parent p[1]: %d\n", pi[1]);
     //close(pi[1]);
 
     if(_cmd2->isPipe)
@@ -412,27 +412,63 @@ void piping_it(int c1, int c2, command_list_struct* _cmd_list, int last_cmd_outp
     }
     else
     {
-      printf("We are in the else!!! %s\n", *_cmd2->cmd_and_args);
+      fprintf(stderr,"We are in the else!!! %s\n", *_cmd2->cmd_and_args);
       close(pi[1]); /* Don't need write to the pipe */
       if(c1 ==0){
-	dup2(pi[0], STDIN_FILENO);
-	} else {
-	printf("This is last_cmd_parent: %d\n", last_cmd_output);
+        dup2(pi[0], STDIN_FILENO);
+      } else {
+        fprintf(stderr,"This is last_cmd_parent: %d\n", last_cmd_output);
 
-      dup2(last_cmd_output, STDIN_FILENO); /*Replace STDIN with the read port of the pipe*/
-	}
-	printf("WEEE %d\n", pi[0]);
+        dup2(last_cmd_output, STDIN_FILENO); /*Replace STDIN with the read port of the pipe*/
+      }
+      fprintf(stderr,"WEEE %d\n", pi[0]);
       execvp(_cmd2->cmd_and_args[0], _cmd2->cmd_and_args);
       //return;
     }
   }
 }
 
+/*For missing command error
+ * if & of |  is first token
+ * if pipe is last token
+ * */
+bool check_for_missing_cmd(command_list_struct* _cmd_list) {
+  bool was_missing = false;
+  if(strcmp(_cmd_list->cmd_list[0]->cmd_and_args[0],"&") == 0 ||
+      strcmp(_cmd_list->cmd_list[0]->cmd_and_args[0],"|") == 0 ||
+      strcmp(_cmd_list->cmd_list[_cmd_list->num_cmd - 1]->isPipe,"|") == 0) {
+    char err_msg[] = "Error: missing command\n";
+    fprintf(stderr, "%s", err_msg);
+    was_missing = true;
+  }
+  return was_missing;
+}
+// checks if any of the commands have too many arguments.
+bool check_for_too_many_cmd(command_list_struct* _cmd_list) {
+  bool were_too_many_args = false;
+  for(int i = 0; i < _cmd_list->num_cmd; i++) {
+    if(_cmd_list->cmd_list[i]->numArgs > 16) {
+      char err_msg[] = "Error: too many process arguments\n";
+      fprintf(stderr, "%s", err_msg);
+      were_too_many_args = true;
+    }
+
+  }
+  return were_too_many_args;
+}
 int main(int argc, char *argv[])
 {
   while (true)
   {
     command_list_struct* _cmd_list = get_user_cmd();
+
+    // This code check id there are too many arguments in any of the commands.
+    if(check_for_too_many_cmd(_cmd_list)) {
+      continue;
+    }
+    if(check_for_missing_cmd(_cmd_list)) {
+      continue;
+    }
     command* _cmd = _cmd_list->cmd_list[0];
     pid_t pid;
 
@@ -452,14 +488,14 @@ int main(int argc, char *argv[])
     if (strcmp(_cmd->cmd_and_args[0], "cd") == 0)
     {
       int i = chdir(_cmd->cmd_and_args[1]);
-	if( i!=0){
-	fprintf(stderr ,"%s","Error: no such directory\n");
-	}
+      if( i!=0){
+        fprintf(stderr ,"%s","Error: no such directory\n");
+      }
       fprintf(stderr,
               "+ completed '%s' [%d]\n",
               get_formatted_input_str(_cmd_list->input_string),
               WEXITSTATUS(i));
-	
+
     }
     else
     {
@@ -507,6 +543,9 @@ int main(int argc, char *argv[])
         exit(1);
       }
     }
+
+
+    /// Free the mem in commandList struct.
   }
   return EXIT_SUCCESS;
 }
